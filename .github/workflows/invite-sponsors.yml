@@ -2,19 +2,20 @@ name: Invite Sponsors
 
 on:
   schedule:
-    - cron: '0 * * * *' # Every hour
-  workflow_dispatch: # Manual trigger
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
   invite:
     runs-on: ubuntu-latest
+    if: secrets.INVITER_TOKEN != ''
     steps:
       - name: Check Sponsors and Invite
         uses: actions/github-script@v7
         with:
-          github-token: \${{ secrets.INVITER_TOKEN }}
+          github-token: ${{ secrets.INVITER_TOKEN }}
           script: |
-            const query = \`
+            const query = `
               {
                 viewer {
                   sponsorshipsAsMaintainer(first: 100) {
@@ -23,25 +24,18 @@ jobs:
                         ... on User { login }
                         ... on Organization { login }
                       }
-                      tier {
-                        monthlyPriceInCents
-                      }
+                      tier { monthlyPriceInCents }
                     }
                   }
                 }
               }
-            \`;
-            
+            `;
             const result = await github.graphql(query);
             const sponsors = result.viewer.sponsorshipsAsMaintainer.nodes;
-            
             for (const sponsorship of sponsors) {
               const login = sponsorship.sponsorEntity.login;
               const price = sponsorship.tier.monthlyPriceInCents;
-              
-              // Gold tier is 2500 cents (\$25), Research tier is 29900 cents (\$299)
               if (price >= 2500) {
-                console.log(\`Inviting \${login} due to tier price: \${price}\`);
                 try {
                   await github.rest.repos.addCollaborator({
                     owner: context.repo.owner,
@@ -50,7 +44,7 @@ jobs:
                     permission: 'read'
                   });
                 } catch (e) {
-                  console.log(\`Failed to invite \${login}: \${e.message}\`);
+                  console.log(`Failed to invite ${login}: ${e.message}`);
                 }
               }
             }
